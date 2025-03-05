@@ -19,6 +19,7 @@ fmtname(char *path)
     return p;
   memmove(buf, p, strlen(p));
   memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+
   return buf;
 }
 
