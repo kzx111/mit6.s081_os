@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "syscall.h": "c",
+        "defs.h": "c",
+        "proc.h": "c",
+        "elf.h": "c"
+    }
+}

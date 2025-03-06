@@ -114,6 +114,7 @@ _%: %.o $(ULIB)
 $U/usys.S : $U/usys.pl
 	perl $U/usys.pl > $U/usys.S
 
+
 $U/usys.o : $U/usys.S
 	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
 
@@ -149,6 +150,10 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_trace\
+	$U/_sysinfotest\
+	$U/_sysinfo\
+
 
 
 
