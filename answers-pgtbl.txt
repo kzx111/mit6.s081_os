@@ -1,0 +1,44 @@
+Q1:Which other xv6 system call(s) could be made faster using this shared page? Explain how.
+任何直接或间接调用 copyout() 的系统调用都会被加速，因为它节省了复制数据的时间。
+此外，纯粹用于信息检索的系统调用，比如本节中提到的 getpid()，也会更快。
+这是因为不再需要陷入操作系统，对应的数据可以在用户模式下读取。
+
+Q2:
+Explain the output of vmprint in terms of Fig 3-4 from the text.
+ What does page 0 contain? What is in page 2?
+ When running in user mode, could the process read/write the memory mapped by page 1? 
+ What does the third to last page contain?
+
+
+page table 0x0000000087f6e000
+.. 0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+.. .. 0: pte 0x0000000021fda401 pa 0x0000000087f69000
+.. .. .. 0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+.. .. .. 1: pte 0x0000000021fda00f pa 0x0000000087f68000
+.. .. .. 2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+.. 255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+.. .. 511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+.. .. .. 509: pte 0x0000000021fdd813 pa 0x0000000087f76000
+.. .. .. 510: pte 0x0000000021fddc07 pa 0x0000000087f77000
+.. .. .. 511: pte 0x0000000020001c0b pa 0x0000000080007000
+
+根据这个图还有打印出来的地址值（可以在分配页面时打印出text stack trampoline的地址）
+显然可以得出
+page0是程序的text和data段，page2是程序的stack段，page1是guard段,
+在exec中查代码发现其连续分配两个page，高地址page用作stack，低地址page用作guard，
+并且对guard进行clear，也就是其PTE的U为0，所以不能进行读写。
+剩下的都是高地址段：依次是自己定义的usyscall，trapframe，trampoline
+
+代码如下：//exec.c
+  // Allocate two pages at the next page boundary.
+  // Use the second as the user stack.
+  sz = PGROUNDUP(sz);
+  uint64 sz1;
+  if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE)) == 0)
+    goto bad;
+  sz = sz1;
+  uvmclear(pagetable, sz - 2 * PGSIZE);
+  sp = sz;
+  stackbase = sp - PGSIZE;
+
+
