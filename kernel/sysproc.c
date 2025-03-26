@@ -43,12 +43,21 @@ sys_sbrk(void)
 {
   int addr;
   int n;
+  struct proc *p;
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+  p=myproc();
+  addr=p->sz;
+  if(n>=0&&addr+n>=addr){
+    p->sz+=n;      // increase size but not allocate memory
+  }else if(n<0  &&  addr+n>=PGROUNDUP(p->trapframe->sp))  //Handle negative sbrk() arguments.
+  {
+    p->sz=uvmdealloc(p->pagetable,addr,addr+n);
+  }else{
     return -1;
+  }        
+
   return addr;
 }
 
