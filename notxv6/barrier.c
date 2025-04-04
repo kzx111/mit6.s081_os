@@ -30,6 +30,16 @@ barrier()
   // Block until all threads have called barrier() and
   // then increment bstate.round.
   //
+  pthread_mutex_lock(&bstate.barrier_mutex);
+  bstate.nthread+=1;
+  if(bstate.nthread==nthread){
+    pthread_cond_broadcast(&bstate.barrier_cond);
+    bstate.nthread=0;
+    bstate.round+=1;
+  }else{
+    pthread_cond_wait(&bstate.barrier_cond,&bstate.barrier_mutex);
+  }
+  pthread_mutex_unlock(&bstate.barrier_mutex);
   
 }
 
@@ -40,9 +50,9 @@ thread(void *xa)
   long delay;
   int i;
 
-  for (i = 0; i < 20000; i++) {
+  for (i = 0; i < 20000; i++) {   //一共有20000个回合
     int t = bstate.round;
-    assert (i == t);
+    assert (i == t);    //如果i!=t那么就会fail
     barrier();
     usleep(random() % 100);
   }
