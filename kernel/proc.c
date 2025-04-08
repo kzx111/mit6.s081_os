@@ -553,7 +553,7 @@ forkret(void)
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
 void
-sleep(void *chan, struct spinlock *lk)
+sleep(void *chan, struct spinlock *lk)             
 {
   struct proc *p = myproc();
   
@@ -563,7 +563,7 @@ sleep(void *chan, struct spinlock *lk)
   // guaranteed that we won't miss any wakeup
   // (wakeup locks p->lock),
   // so it's okay to release lk.
-  if(lk != &p->lock){  //DOC: sleeplock0
+  if(lk != &p->lock){  //DOC: sleeplock0                //   注意：当lk本身就是p->lock时会出现死锁的问题。
     acquire(&p->lock);  //DOC: sleeplock1
     release(lk);
   }
