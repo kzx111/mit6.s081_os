@@ -21,12 +21,16 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+  char name[8];
+} kmem[NCPU];
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  for(int i=0;i<NCPU;i++){
+    snprintf(kmem[i].name,8,"kmem_%d",i);
+    initlock(&kmem[i].lock, kmem[i].name);
+  }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,11 +60,51 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  push_off();
+  int id=cpuid();
+  pop_off();
+
+  acquire(&kmem[id].lock);
+  r->next = kmem[id].freelist;
+  kmem[id].freelist = r;
+  release(&kmem[id].lock);
 }
+
+
+struct run* steal(int id){
+  struct run *r, *slow, *fast;
+  if(id!=cpuid()){
+    panic("steal");
+  }
+  for(int i=0;i<NCPU;i++){
+    if(i==id)continue;
+    acquire(&kmem[i].lock);
+    r=kmem[i].freelist;
+    if(r){
+      slow=r;
+      fast=slow->next;
+      while(fast){
+        fast=fast->next;
+        if(fast){
+          slow=slow->next;
+          fast=fast->next;
+        }
+      }
+
+      kmem[i].freelist=slow->next;
+      release(&kmem[i].lock);
+      slow->next=0;
+      return r;
+    }
+    release(&kmem[i].lock);
+
+  }
+      // 若其他CPU物理页均为空则返回空指针
+  return 0;
+}
+
+
+
 
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
@@ -70,11 +114,28 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+
+  push_off();
+  int id=cpuid();
+  pop_off();
+
+
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist;
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem[id].freelist = r->next;           //这里是r->next是因为要分配第一个所以要下一个
+  release(&kmem[id].lock);
+
+
+  if(!r){
+    r=steal(id);
+    if(r){
+      acquire(&kmem[id].lock);
+      kmem[id].freelist=r->next;
+      release(&kmem[id].lock);
+    }
+
+  }
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk

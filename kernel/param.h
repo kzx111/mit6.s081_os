@@ -11,3 +11,6 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       10000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
+// lab8-2
+#define NBUCKET 13      // the count of hash table's buckets
+#define HASH(blockno) (blockno % NBUCKET)
