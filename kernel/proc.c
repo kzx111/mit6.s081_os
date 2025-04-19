@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -143,8 +144,10 @@ found:
 static void
 freeproc(struct proc *p)
 {
-  if(p->trapframe)
+  if(p->trapframe){
     kfree((void*)p->trapframe);
+  }
+
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -199,7 +202,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
-  uvmfree(pagetable, sz);
+  uvmfree(pagetable, sz);                   
 }
 
 // a user program that calls exec("/init")
@@ -295,12 +298,18 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
-
+  for (i = 0; i < NVMA; ++i) {                        //子进程也要分配vma
+    if (p->vma[i].valid) {
+      np->vma[i] = p->vma[i];
+      filedup(np->vma[i].f);
+    }
+  }
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
 
   np->state = RUNNABLE;
+
 
   release(&np->lock);
 
@@ -343,6 +352,7 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -393,7 +403,6 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&original_parent->lock);
-
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
@@ -433,7 +442,7 @@ wait(uint64 addr)
             release(&p->lock);
             return -1;
           }
-          freeproc(np);
+          freeproc(np);                                          
           release(&np->lock);
           release(&p->lock);
           return pid;

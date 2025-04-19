@@ -18,7 +18,7 @@
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
-static int
+int
 argfd(int n, int *pfd, struct file **pf)
 {
   int fd;
@@ -483,4 +483,91 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+// lab10
+uint64 sys_mmap(void) {
+  uint64 addr;
+  int len, prot, flags, offset,fd;
+  struct file* f;
+  struct proc *p = myproc();
+  if (argaddr(0, &addr) < 0 || argint(1, &len) < 0
+      || argint(2, &prot) < 0 || argint(3, &flags) < 0
+      || argfd(4, &fd, &f) < 0 || argint(5, &offset) < 0) {
+    return -1;
+  }
+
+  if (flags != MAP_SHARED && flags != MAP_PRIVATE) {
+    return -1;
+  }
+  // the file must be written when flag is MAP_SHARED
+  if (flags == MAP_SHARED && f->writable==0 && (prot & PROT_WRITE)) {
+    return -1;
+  }
+
+    // offset must be a multiple of the page size
+  if (len < 0 || offset < 0 || offset % PGSIZE) {
+    return -1;
+  }
+
+  struct vm_area *pvma = p->vma;
+  for (int i = 0; i < NVMA; i++) {
+    if(pvma[i].valid == 0) {
+      pvma[i].addr = p->sz;
+      pvma[i].f = filedup(f);  // increment the refcount for f
+      // if(pvma[i].f->ip->type == T_FILE) printf("%d   ",pvma[i].f->ip->ref);
+      pvma[i].flags = flags;
+      pvma[i].len = PGROUNDUP(len);
+      pvma[i].prot = prot;
+      pvma[i].valid = 1;
+      pvma[i].offset = offset;
+      pvma[i].valid_len = pvma[i].len;
+      p->sz += pvma[i].len;
+      return pvma[i].addr;
+    }
+  }
+  return -1;
+}
+
+
+
+uint64 sys_munmap(void){
+  struct proc* p=myproc();
+  int close =0;
+  char* p1;
+  int len;
+   if (argaddr(0,(uint64*) &p1) < 0 || argint(1, &len) < 0 ){
+    return -1;
+  }
+  struct vm_area* pvma=p->vma;
+  for(int i=0;i<NVMA;i++){
+    if(pvma[i].valid && pvma[i].addr<=(uint64)p1 && pvma[i].addr+pvma[i].len>(uint64)p1){  //找到地址范围的vma
+      p1=(char*)PGROUNDDOWN((uint64)p1);
+      if((uint64)p1 == pvma[i].addr+pvma[i].offset){  //从头开始
+        if(len >= pvma[i].valid_len){       //释放mmap的所有页面
+          pvma[i].valid=0;
+          p->sz-=pvma[i].len;
+          len=pvma[i].valid_len;
+          close++;
+        }else{         //只是释放部分页面
+          pvma[i].offset+=len;
+          pvma[i].valid_len-=len;
+        }
+      }else{                //在范围中间部分开始
+        len=pvma[i].addr+pvma[i].offset+pvma[i].valid_len-(uint64)p1;
+        pvma[i].valid_len -= len;
+   
+      }
+      //此时，我们需要将map_shared文件映射写回
+      if(pvma->valid == MAP_SHARED){
+       _filewrite(pvma[i].f,(uint64)p1,len,(uint64)(p1-pvma[i].addr));
+      };
+      uvmunmap(p->pagetable,(uint64)p1,len/PGSIZE,0);              //先写文件，在解除映射
+      if(close)           fileclose(pvma[i].f);              //文件的引用数减一
+      return 0;
+    }
+  }
+
+
+  return -1;
 }

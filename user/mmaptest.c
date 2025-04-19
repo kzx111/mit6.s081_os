@@ -231,12 +231,12 @@ mmap_test(void)
     err("mmap1 mismatch");
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch");
+  
 
   munmap(p1, PGSIZE);
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch (2)");
-  munmap(p2, PGSIZE);
-  
+  munmap(p2, PGSIZE);                             
   printf("test mmap two files: OK\n");
   
   printf("mmap_test: ALL OK\n");
@@ -271,18 +271,15 @@ fork_test(void)
   // read just 2nd page.
   if(*(p1+PGSIZE) != 'A')
     err("fork mismatch (1)");
-
   if((pid = fork()) < 0)
     err("fork");
   if (pid == 0) {
-    _v1(p1);
+    printf("%c\n",p1[1]);
     munmap(p1, PGSIZE); // just the first page
     exit(0); // tell the parent that the mapping looks OK.
   }
-
   int status = -1;
-  wait(&status);
-
+  wait(&status);               
   if(status != 0){
     printf("fork_test failed\n");
     exit(1);

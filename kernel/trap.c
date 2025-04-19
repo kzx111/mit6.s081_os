@@ -5,6 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -65,9 +68,41 @@ usertrap(void)
     intr_on();
 
     syscall();
+  }
+  else if (r_scause() == 12 || r_scause() == 13
+             || r_scause() == 15) { // mmap page fault - lab10
+      uint64 va=r_stval();
+      if (va < p->trapframe->sp || va >= p->sz) {
+      goto err;
+      }
+      va=PGROUNDDOWN(va);
+
+      for(int i=0;i<NVMA;i++){
+        if(p->vma[i].valid&& va >= p->vma[i].addr + p->vma[i].offset && va < p->vma[i].addr + p->vma[i].offset + p->vma[i].valid_len){
+          char* mem=kalloc();                    //分配一个内存页
+          if(!mem)  goto err;
+          memset(mem,0,PGSIZE);    
+          int flag= (p->vma[i].prot << 1) | PTE_U ;    
+          int t=mappages(p->pagetable,va,PGSIZE,(uint64)mem,flag);     
+          if(t==-1) {
+            kfree(mem);   //不要忘记释放分配的内存
+            goto err;
+          }
+          int off = va - p->vma[i].addr;
+          ilock(p->vma[i].f->ip);                               //读取文件内容不要忘记加锁
+          readi(p->vma[i].f->ip, 1, va, off, PGSIZE);
+          iunlock(p->vma[i].f->ip);
+          break;                                        //我觉得这种思路要清晰明了许多，之前已经在用户虚拟地址空间设置了vmas，并且是连续的虚拟地址空间
+                                                      //当发生page fault的时候，就寻找相对于的虚拟页，并分配页框与其对应，一次pagefault只分配一个页框。
+        }
+
+}
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
+
+  err:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
