@@ -47,7 +47,7 @@ jalr 1536(ra)       :jalr（Jump and Link Register）：跳转到寄存器中的
 
 
 
-![](C:\Users\Jack\Desktop\os note\pic\Snipaste_2025-03-20_20-11-13.png)
+![](..\pic\Snipaste_2025-03-20_20-11-13.png)
 
 
 
@@ -126,6 +126,14 @@ test0难度还可以唯一不懂的是，timer interruption是怎么操作的，
 这个知识点还是看后面内容吧。
 
 注意，在allocatepro里初始化进程的属性，在freepro也是。而在sys_sigalarm就是要对该进程的属性赋值为我们想要的，就是我们上面错误的代码。
+
+
+
+
+
+
+
+
 
 ### 3月20日
 
